@@ -28,8 +28,7 @@ async function run() {
         let params = {
             automapper: false,
             before: currentDateString,
-            pageSize: 100,
-            sort: "CREATED"
+            pageSize: 100
         }
         let searchParams = new URLSearchParams(params);
 
@@ -43,6 +42,7 @@ async function run() {
         }
         
         const data = await response.json();
+        let lastMap = {};
 
         for(const mapData of data.docs) {
             amount++;
@@ -87,15 +87,16 @@ async function run() {
             }
             
             mapList.addMapmetadata(entry);
+            lastMap = mapData;
         }
         
-        console.log(`Cached ${amount} maps (currently at: ${data.docs[data.docs.length - 1].id}) ...`);
+        console.log(`Cached ${amount} maps (currently at: ${lastMap.id}) ...`);
         
         if(!data.docs.length) {
             console.log("No maps left!");
             keepGoing = false;
         } else {
-            currentDateString = data.docs[data.docs.length - 1].uploaded;
+            currentDateString = lastMap.uploaded;
             await delay(100);
         }
     }
