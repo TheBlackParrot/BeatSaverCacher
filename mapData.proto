@@ -1,0 +1,44 @@
+// mapData.proto
+package CachedBeatSaverData;
+
+enum MapMods {
+	Cinema = 1;
+	MappingExtensions = 2;
+	Chroma = 4;
+	NoodleExtensions = 8;
+	Vivify = 16;
+}
+
+message MapList {
+	repeated MapMetadata mapMetadata = 1;
+}
+
+message Votes {
+	required uint32 up = 1;
+	required uint32 down = 2;
+}
+
+message Difficulty {
+	required float njs = 1;
+	required uint32 notes = 2;
+	required string characteristicName = 3;
+	required string difficultyName = 4;
+	required MapMods mods = 5;
+	required string environmentName = 6;
+}
+
+message MapMetadata {
+	required uint32 key = 1;
+	required string hash = 2;
+	optional string songName = 3;
+	optional string songSubName = 4;
+	optional string songAuthorName = 5;
+	optional string levelAuthorName = 6;
+	required uint32 duration = 7;
+	required uint32 uploaded = 8;
+	required uint32 lastUpdated = 9;
+	required MapMods mods = 10;
+	optional string curatorName = 11;
+	required Votes votes = 12;
+	repeated Difficulty difficulties = 13;
+}
