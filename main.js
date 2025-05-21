@@ -89,7 +89,7 @@ async function run() {
             mapList.addMapmetadata(entry);
         }
         
-        console.log(`Cached ${amount} maps...`);
+        console.log(`Cached ${amount} maps (currently at: ${data.docs[data.docs.length - 1].id}) ...`);
         
         if(!data.docs.length) {
             console.log("No maps left!");
