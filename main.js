@@ -104,15 +104,4 @@ async function run() {
     
     //fs.writeFileSync("./test.json", JSON.stringify(MapListSchema.MapList.deserializeBinary(mapList.serializeBinary()).toObject(), null, "\t"));
 }
-/*
-let root = protobuf.load("./mapData.proto").then(function(proto) {
-    let MessageType = proto.lookupType("CachedBeatSaverData.MapMetadata");
-    let payload = { key: 0x1af };
-
-    let errMsg = MessageType.verify(payload);
-    if (errMsg)
-        throw Error(errMsg); 
-});
-//run();
-*/
 run();
