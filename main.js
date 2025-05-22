@@ -61,7 +61,7 @@ async function run() {
             
             let votes = new MapListSchema.Votes();
             votes.setUp(mapData.stats.upvotes);
-            votes.setDown(mapData.stats.upvotes);
+            votes.setDown(mapData.stats.downvotes);
             entry.setVotes(votes);
 
             if("curator" in mapData) { entry.setCuratorname(mapData.curator.name); }
