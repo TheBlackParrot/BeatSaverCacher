@@ -18,6 +18,16 @@ message Votes {
 	required uint32 down = 2;
 }
 
+message RankedValue {
+	required bool IsRanked = 1;
+	required uint32 Stars = 2;
+}
+
+message Ranked {
+	required RankedValue ScoreSaber = 1;
+	required RankedValue BeatLeader = 2;
+}
+
 message Difficulty {
 	required float njs = 1;
 	required uint32 notes = 2;
@@ -25,6 +35,7 @@ message Difficulty {
 	required string difficultyName = 4;
 	required MapMods mods = 5;
 	required string environmentName = 6;
+	required Ranked ranked = 7;
 }
 
 message MapMetadata {
