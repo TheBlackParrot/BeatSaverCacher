@@ -19,8 +19,8 @@ message Votes {
 }
 
 message RankedValue {
-	required bool IsRanked = 1;
-	required uint32 Stars = 2;
+	required bool isRanked = 1;
+	required uint32 stars = 2;
 }
 
 message Ranked {
