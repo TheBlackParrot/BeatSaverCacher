@@ -97,9 +97,16 @@ async function saveProtobufCache() {
     console.log(encoded);
     
     zlib.gzip(encoded, (err, buffer) => {
+        if(err) { 
+            console.error(err);
+            return;
+        }
+        
         fs.writeFile("./cached.proto.gz", buffer, err => {
-            if(err) { throw err; }
-        })
+            if(err) {
+                console.error(err);
+            }
+        });
     });
 } 
 
