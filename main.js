@@ -96,19 +96,11 @@ async function saveProtobufCache() {
     console.log(encoded.length);
     console.log(encoded);
     
-    fs.writeFileSync("./cached.proto", encoded);
-    
-    zlib.deflate(encoded, (err, buffer) => {
+    zlib.gzip(encoded, (err, buffer) => {
         fs.writeFile("./cached.proto.gz", buffer, err => {
             if(err) { throw err; }
         })
     });
-
-    /*const gzip = zlib.createGzip();
-    const destination = fs.createWriteStream("./cached.proto.gz");
-    stream.pipeline(encoded, gzip, destination, (err) => {
-        if(err) throw err;
-    });*/
 } 
 
 function updateCacheData(mapData) {
