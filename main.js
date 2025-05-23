@@ -91,7 +91,11 @@ async function saveProtobufCache() {
 } 
 
 function updateCacheData(mapData) {
-    let entry = new MapListSchema.MapMetadata();
+    let entry = mapListMap.get(mapData.id);
+    if(entry == null) {
+        entry = new MapListSchema.MapMetadata();
+    }
+
     entry.setKey(parseInt(mapData.id, 16));
     entry.setHash(mapData.versions[0].hash);
     entry.setDuration(mapData.metadata.duration);
@@ -103,10 +107,13 @@ function updateCacheData(mapData) {
         (doesMapUseMod(mapData.versions[0], "ne") ? MapListSchema.MapMods.NOODLEEXTENSIONS : 0) +
         (doesMapUseMod(mapData.versions[0], "vivify") ? MapListSchema.MapMods.VIVIFY : 0));
 
-    let votes = new MapListSchema.Votes();
+    let votes = entry.getVotes();
+    if(votes == null) {
+        votes = new MapListSchema.Votes();
+        entry.setVotes(votes);
+    }
     votes.setUp(mapData.stats.upvotes);
     votes.setDown(mapData.stats.downvotes);
-    entry.setVotes(votes);
 
     if("curator" in mapData) { entry.setCuratorname(mapData.curator.name); }
     if(mapData.metadata.songName !== "") { entry.setSongname(mapData.metadata.songName); }
@@ -114,6 +121,7 @@ function updateCacheData(mapData) {
     if(mapData.metadata.songAuthorName !== "") { entry.setSongauthorname(mapData.metadata.songAuthorName); }
     if(mapData.metadata.levelAuthorName !== "") { entry.setLevelauthorname(mapData.metadata.levelAuthorName); }
 
+    entry.clearDifficultiesList();
     for(const diff of mapData.versions[0].diffs) {
         let diffEntry = new MapListSchema.Difficulty();
         diffEntry.setNjs(diff.njs);
@@ -126,14 +134,28 @@ function updateCacheData(mapData) {
             (diff.ne ? MapListSchema.MapMods.NOODLEEXTENSIONS : 0) +
             (diff.vivify ? MapListSchema.MapMods.VIVIFY : 0));
         diffEntry.setEnvironmentname(diff.environment.replaceAll("Environment", ""));
+        
+        let rankedEntry = new MapListSchema.Ranked();
+        
+        let ssDiffRankedData = new MapListSchema.RankedValue();
+        ssDiffRankedData.setIsranked("stars" in diff);
+        ssDiffRankedData.setStars("stars" in diff ? diff.stars : 0);
+        rankedEntry.setScoresaber(ssDiffRankedData);
+
+        let blDiffRankedData = new MapListSchema.RankedValue();
+        blDiffRankedData.setIsranked("blStars" in diff);
+        blDiffRankedData.setStars("blStars" in diff ? diff.blStars : 0);
+        rankedEntry.setBeatleader(blDiffRankedData);
+
+        diffEntry.setRanked(rankedEntry);
 
         entry.addDifficulties(diffEntry);
     }
-
+    
     mapListMap.set(mapData.id, entry);
 }
-function removeCacheData(mapData) {
-    mapListMap.del(mapData.id);
+function removeCacheData(id) {
+    mapListMap.del(id);
 }
 
 let socket;
@@ -167,16 +189,22 @@ function startBeatSaverSocket() {
         
         switch(receivedData.type) {
             case "MAP_UPDATE":
-                console.log(receivedData);
                 console.log(`[Socket] Updating key ${receivedData.msg.id}`);
                 updateCacheData(receivedData.msg);
-                await saveProtobufCache();
+                try {
+                    await saveProtobufCache();
+                } catch (e) {
+                    console.error(e);
+                }
                 break;
             case "MAP_DELETE":
-                console.log(receivedData);
-                console.log(`[Socket] Deleting key ${receivedData.msg.id}`);
+                console.log(`[Socket] Deleting key ${receivedData.msg}`);
                 removeCacheData(receivedData.msg);
-                await saveProtobufCache();
+                try {
+                    await saveProtobufCache();
+                } catch (e) {
+                    console.error(e);
+                }
                 break;
                 
             default:
