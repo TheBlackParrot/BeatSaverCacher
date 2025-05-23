@@ -10,7 +10,7 @@ enum MapMods {
 }
 
 message MapList {
-	repeated MapMetadata mapMetadata = 1;
+	map<string, MapMetadata> mapMetadata = 1;
 }
 
 message Votes {

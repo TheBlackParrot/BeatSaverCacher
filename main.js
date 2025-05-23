@@ -23,12 +23,13 @@ async function run() {
     let amount = 0;
 
     let mapList = new MapListSchema.MapList();
+    let mapListMap = mapList.getMapmetadataMap();
     
     while(keepGoing) {
         let params = {
             automapper: false,
             before: currentDateString,
-            pageSize: 100
+            pageSize: 10
         }
         let searchParams = new URLSearchParams(params);
 
@@ -86,7 +87,7 @@ async function run() {
                 entry.addDifficulties(diffEntry);
             }
             
-            mapList.addMapmetadata(entry);
+            mapListMap.set(mapData.id, entry);
             lastMap = mapData;
         }
         
