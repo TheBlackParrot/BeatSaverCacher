@@ -86,15 +86,15 @@ async function initCache() {
 
 async function saveProtobufCache() {
     let final = {mapMetadata: cacheObject};
+    
     let pbErr = mapListType.verify(final);
     if(pbErr) {
-        throw Error(pbErr);
+        console.error(pbErr);
+        return;
     }
     
     const message = mapListType.create(final);
     const encoded = mapListType.encode(message).finish();
-    console.log(encoded.length);
-    console.log(encoded);
     
     zlib.gzip(encoded, (err, buffer) => {
         if(err) { 
@@ -161,7 +161,8 @@ function updateCacheData(mapData) {
         
         let pbErr = difficultyType.verify(diffObj);
         if(pbErr) {
-            throw Error(pbErr);
+            console.error(pbErr);
+            continue;
         }
         
         out.difficulties.push(diffObj);
