@@ -1,10 +1,15 @@
-import MapListSchema from "./mapData_pb.js";
+//import MapListSchema from "./mapData_pb.js";
+import protobuf from 'protobufjs';
 import fs from "fs";
+import zlib from "zlib";
+import * as stream from "node:stream";
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 const BeatSaverAPI = "https://api.beatsaver.com/maps/latest";
 const BeatSaverSocketURL = "wss://ws.beatsaver.com/maps";
+
+let cacheObject = {};
 
 function doesMapUseMod(mapData, modName) {
     for(const diff of mapData.diffs) {
@@ -18,8 +23,19 @@ function doesMapUseMod(mapData, modName) {
     return false;
 }
 
-let mapList = new MapListSchema.MapList();
-let mapListMap = mapList.getMapmetadataMap();
+let mapListType;
+let difficultyType;
+protobuf.load("./mapData.proto", async function(err, root) {
+    if(err != null) {
+        throw Error(err);
+    }
+
+    mapListType = root.lookupType("CachedBeatSaverData.MapList");
+    difficultyType = root.lookupType("CachedBeatSaverData.Difficulty");
+
+    await initCache();
+    startBeatSaverSocket();
+});
 
 async function initCache() {
     let currentDateString = new Date().toISOString();
@@ -66,96 +82,96 @@ async function initCache() {
     }
     
     await saveProtobufCache();
-    
-    //fs.writeFileSync("./test.json", JSON.stringify(MapListSchema.MapList.deserializeBinary(mapList.serializeBinary()).toObject(), null, "\t"));
 }
-await initCache();
 
-// https://stackoverflow.com/a/79082701
-async function compressUint8Array(uint8Array) {
-    return new Uint8Array(await new Response(new Blob([uint8Array]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
-}
 async function saveProtobufCache() {
-    let saveData = await compressUint8Array(mapList.serializeBinary());
-    await fs.writeFile("./cached.proto.gz", saveData, err => {
-        if (err) {
-            console.error(err);
-        }
-    });
-    
-    try {
-        fs.writeFileSync("./test.json", JSON.stringify(MapListSchema.MapList.deserializeBinary(mapList.serializeBinary()).toObject(), null, "\t"));
-    } catch(err) {
-        console.error(err.message);
+    let final = {mapMetadata: cacheObject};
+    let pbErr = mapListType.verify(final);
+    if(pbErr) {
+        throw Error(pbErr);
     }
+    
+    const message = mapListType.create(final);
+    const encoded = mapListType.encode(message).finish();
+    console.log(encoded.length);
+    console.log(encoded);
+    
+    fs.writeFileSync("./cached.proto", encoded);
+    
+    zlib.deflate(encoded, (err, buffer) => {
+        fs.writeFile("./cached.proto.gz", buffer, err => {
+            if(err) { throw err; }
+        })
+    });
+
+    /*const gzip = zlib.createGzip();
+    const destination = fs.createWriteStream("./cached.proto.gz");
+    stream.pipeline(encoded, gzip, destination, (err) => {
+        if(err) throw err;
+    });*/
 } 
 
 function updateCacheData(mapData) {
-    let entry = mapListMap.get(mapData.id);
-    if(entry == null) {
-        entry = new MapListSchema.MapMetadata();
-    }
+    let out = {
+        key: parseInt(mapData.id, 16),
+        hash: mapData.versions[0].hash,
+        duration: mapData.metadata.duration,
+        uploaded: Math.round(new Date(mapData.lastPublishedAt).getTime() / 1000),
+        lastUpdated: Math.round(new Date(mapData.updatedAt).getTime() / 1000),
+        mods: (doesMapUseMod(mapData.versions[0], "cinema") ? 1 : 0) +
+            (doesMapUseMod(mapData.versions[0], "me") ? 2 : 0) +
+            (doesMapUseMod(mapData.versions[0], "chroma") ? 4 : 0) +
+            (doesMapUseMod(mapData.versions[0], "ne") ? 8 : 0) +
+            (doesMapUseMod(mapData.versions[0], "vivify") ? 16 : 0),
+        votes: {
+            up: mapData.stats.upvotes,
+            down: mapData.stats.downvotes
+        },
+        difficulties: []
+    };
 
-    entry.setKey(parseInt(mapData.id, 16));
-    entry.setHash(mapData.versions[0].hash);
-    entry.setDuration(mapData.metadata.duration);
-    entry.setUploaded(Math.round(new Date(mapData.lastPublishedAt).getTime() / 1000));
-    entry.setLastupdated(Math.round(new Date(mapData.updatedAt).getTime() / 1000));
-    entry.setMods((doesMapUseMod(mapData.versions[0], "cinema") ? MapListSchema.MapMods.CINEMA : 0) +
-        (doesMapUseMod(mapData.versions[0], "me") ? MapListSchema.MapMods.MAPPINGEXTENSIONS : 0) +
-        (doesMapUseMod(mapData.versions[0], "chroma") ? MapListSchema.MapMods.CHROMA : 0) +
-        (doesMapUseMod(mapData.versions[0], "ne") ? MapListSchema.MapMods.NOODLEEXTENSIONS : 0) +
-        (doesMapUseMod(mapData.versions[0], "vivify") ? MapListSchema.MapMods.VIVIFY : 0));
+    if("curator" in mapData) { out.curatorName = mapData.curator.name; }
+    if(mapData.metadata.songName !== "") { out.songName = mapData.metadata.songName; }
+    if(mapData.metadata.songSubName !== "") { out.songSubName = mapData.metadata.songSubName; }
+    if(mapData.metadata.songAuthorName !== "") { out.songAuthorName = mapData.metadata.songAuthorName; }
+    if(mapData.metadata.levelAuthorName !== "") { out.levelAuthorName = mapData.metadata.levelAuthorName; }
 
-    let votes = entry.getVotes();
-    if(votes == null) {
-        votes = new MapListSchema.Votes();
-        entry.setVotes(votes);
-    }
-    votes.setUp(mapData.stats.upvotes);
-    votes.setDown(mapData.stats.downvotes);
-
-    if("curator" in mapData) { entry.setCuratorname(mapData.curator.name); }
-    if(mapData.metadata.songName !== "") { entry.setSongname(mapData.metadata.songName); }
-    if(mapData.metadata.songSubName !== "") { entry.setSongsubname(mapData.metadata.songSubName); }
-    if(mapData.metadata.songAuthorName !== "") { entry.setSongauthorname(mapData.metadata.songAuthorName); }
-    if(mapData.metadata.levelAuthorName !== "") { entry.setLevelauthorname(mapData.metadata.levelAuthorName); }
-
-    entry.clearDifficultiesList();
     for(const diff of mapData.versions[0].diffs) {
-        let diffEntry = new MapListSchema.Difficulty();
-        diffEntry.setNjs(diff.njs);
-        diffEntry.setNotes(diff.notes);
-        diffEntry.setCharacteristicname(diff.characteristic);
-        diffEntry.setDifficultyname(diff.difficulty);
-        diffEntry.setMods((diff.cinema ? MapListSchema.MapMods.CINEMA : 0) +
-            (diff.me ? MapListSchema.MapMods.MAPPINGEXTENSIONS : 0) +
-            (diff.chroma ? MapListSchema.MapMods.CHROMA : 0) +
-            (diff.ne ? MapListSchema.MapMods.NOODLEEXTENSIONS : 0) +
-            (diff.vivify ? MapListSchema.MapMods.VIVIFY : 0));
-        diffEntry.setEnvironmentname(diff.environment.replaceAll("Environment", ""));
+        let diffObj = {
+            njs: diff.njs,
+            notes: diff.notes,
+            characteristicName: diff.characteristic,
+            difficultyName: diff.difficulty,
+            mods: (diff.cinema ? 1 : 0) +
+                (diff.me ? 2 : 0) +
+                (diff.chroma ? 4 : 0) +
+                (diff.ne ? 8 : 0) +
+                (diff.vivify ? 16 : 0),
+            environmentName: diff.environment.replaceAll("Environment", ""),
+            ranked: {
+                ScoreSaber: {
+                    isRanked: "stars" in diff,
+                    stars: "stars" in diff ? diff.stars : 0
+                },
+                BeatLeader: {
+                    isRanked: "blStars" in diff,
+                    stars: "blStars" in diff ? diff.blStars : 0
+                }
+            }
+        };
         
-        let rankedEntry = new MapListSchema.Ranked();
+        let pbErr = difficultyType.verify(diffObj);
+        if(pbErr) {
+            throw Error(pbErr);
+        }
         
-        let ssDiffRankedData = new MapListSchema.RankedValue();
-        ssDiffRankedData.setIsranked("stars" in diff);
-        ssDiffRankedData.setStars("stars" in diff ? diff.stars : 0);
-        rankedEntry.setScoresaber(ssDiffRankedData);
-
-        let blDiffRankedData = new MapListSchema.RankedValue();
-        blDiffRankedData.setIsranked("blStars" in diff);
-        blDiffRankedData.setStars("blStars" in diff ? diff.blStars : 0);
-        rankedEntry.setBeatleader(blDiffRankedData);
-
-        diffEntry.setRanked(rankedEntry);
-
-        entry.addDifficulties(diffEntry);
+        out.difficulties.push(diffObj);
     }
     
-    mapListMap.set(mapData.id, entry);
+    cacheObject[mapData.id] = out;
 }
 function removeCacheData(id) {
-    mapListMap.del(id);
+    delete cacheObject[id];
 }
 
 let socket;
@@ -213,4 +229,3 @@ function startBeatSaverSocket() {
         }
     });
 }
-startBeatSaverSocket();

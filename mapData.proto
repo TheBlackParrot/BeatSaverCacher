@@ -1,14 +1,6 @@
 // mapData.proto
 package CachedBeatSaverData;
 
-enum MapMods {
-	Cinema = 1;
-	MappingExtensions = 2;
-	Chroma = 4;
-	NoodleExtensions = 8;
-	Vivify = 16;
-}
-
 message MapList {
 	map<string, MapMetadata> mapMetadata = 1;
 }
@@ -33,7 +25,7 @@ message Difficulty {
 	required uint32 notes = 2;
 	required string characteristicName = 3;
 	required string difficultyName = 4;
-	required MapMods mods = 5;
+	required uint32 mods = 5;
 	required string environmentName = 6;
 	required Ranked ranked = 7;
 }
@@ -48,7 +40,7 @@ message MapMetadata {
 	required uint32 duration = 7;
 	required uint32 uploaded = 8;
 	required uint32 lastUpdated = 9;
-	required MapMods mods = 10;
+	required uint32 mods = 10;
 	optional string curatorName = 11;
 	required Votes votes = 12;
 	repeated Difficulty difficulties = 13;
