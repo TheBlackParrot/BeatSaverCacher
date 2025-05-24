@@ -111,10 +111,21 @@ async function saveProtobufCache() {
 function updateCacheData(mapData) {
     if(!("lastPublishedAt" in mapData)) {
         console.log(`${mapData.id} hasn't been published before, ignoring`);
+        removeCacheData(mapData.id);
         return;
     }
     if(mapData.versions[0].state !== "Published") {
-        console.log(`${mapData.id} is not published, removing and ignoring`);
+        console.log(`${mapData.id} is not published, ignoring`);
+        removeCacheData(mapData.id);
+        return;
+    }
+    if(mapData.declaredAi !== "None") {
+        console.log(`${mapData.id} has been declared as AI-generated, ignoring`);
+        removeCacheData(mapData.id);
+        return;
+    }
+    if(mapData.automapper) {
+        console.log(`${mapData.id} is automapped, ignoring`);
         removeCacheData(mapData.id);
         return;
     }
