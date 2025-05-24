@@ -111,6 +111,16 @@ async function saveProtobufCache() {
 } 
 
 function updateCacheData(mapData) {
+    if(!("lastPublishedAt" in mapData)) {
+        console.log(`${mapData.id} hasn't been published before, ignoring`);
+        return;
+    }
+    if(mapData.versions[0].state !== "Published") {
+        console.log(`${mapData.id} is not published, removing and ignoring`);
+        removeCacheData(mapData.id);
+        return;
+    }
+    
     let out = {
         key: parseInt(mapData.id, 16),
         hash: mapData.versions[0].hash,
@@ -149,12 +159,12 @@ function updateCacheData(mapData) {
             environmentName: diff.environment.replaceAll("Environment", ""),
             ranked: {
                 ScoreSaber: {
-                    isRanked: "stars" in diff,
-                    stars: "stars" in diff ? diff.stars : 0
+                    isRanked: ("stars" in diff),
+                    stars: ("stars" in diff ? (isNaN(diff.stars) ? 0 : (diff.stars ?? 0)) : 0)
                 },
                 BeatLeader: {
-                    isRanked: "blStars" in diff,
-                    stars: "blStars" in diff ? diff.blStars : 0
+                    isRanked: ("blStars" in diff),
+                    stars: ("blStars" in diff ? (isNaN(diff.blStars) ? 0 : (diff.blStars ?? 0)) : 0)
                 }
             }
         };
@@ -162,6 +172,7 @@ function updateCacheData(mapData) {
         let pbErr = difficultyType.verify(diffObj);
         if(pbErr) {
             console.error(pbErr);
+            console.log(diffObj);
             continue;
         }
         
@@ -171,7 +182,9 @@ function updateCacheData(mapData) {
     cacheObject[mapData.id] = out;
 }
 function removeCacheData(id) {
-    delete cacheObject[id];
+    if(id in cacheObject) {
+        delete cacheObject[id];
+    }
 }
 
 let socket;
