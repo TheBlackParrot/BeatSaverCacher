@@ -5,7 +5,8 @@ BeatSaver API scraper/listener for Node.js that writes output as a GZip compress
 Primarily for use with [DumbRequestManager](https://github.com/TheBlackParrot/DumbRequestManager), but can be adapted for anything you might need/want it for.
 
 ## Install
->[!NOTE] I've tested/worked with Node.js 22 and 23, unsure about older versions of Node. Also unsure about OS support other than Linux.
+> [!NOTE]
+> I've tested/worked with Node.js 22 and 23, unsure about older versions of Node. Also unsure about OS support other than Linux.
 
 Clone the repository
 ```
@@ -21,4 +22,5 @@ Run `main.js` to start the scraper and the Websocket listener will automatically
 node main.js
 ```
 
->[!TIP] I use PM2 to keep this running in the background, but anything similar or something that can fork the process out will work too. (`nohup`, `screen`, etc.)
+> [!TIP]
+> I use PM2 to keep this running in the background, but anything similar or something that can fork the process out will work too. (`nohup`, `screen`, etc.)
