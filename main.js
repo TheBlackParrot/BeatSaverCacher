@@ -1,8 +1,7 @@
-//import MapListSchema from "./mapData_pb.js";
 import protobuf from 'protobufjs';
 import fs from "fs";
 import zlib from "zlib";
-import * as stream from "node:stream";
+import settings from "./settings.json" with { type: "json" };
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
@@ -101,7 +100,7 @@ async function saveProtobufCache() {
             return;
         }
         
-        fs.writeFile("./cached.proto.gz", buffer, err => {
+        fs.writeFile(settings.cacheFile, buffer, err => {
             if(err) {
                 console.error(err);
             }
@@ -203,11 +202,11 @@ function startBeatSaverSocket() {
         startBeatSaverSocket();
     }, 15000);
     
-    socket.addEventListener("open", event => {
+    socket.addEventListener("open", () => {
         console.log("[Socket] BeatSaver socket connection established");
         clearTimeout(beatSaverSocketTimeout);
     });
-    socket.addEventListener("close", event => {
+    socket.addEventListener("close", () => {
         console.warn("[Socket] BeatSaver socket connection closed, reconnecting in 15 seconds...");
         beatSaverSocketTimeout = setTimeout(startBeatSaverSocket, 15000);
     });
