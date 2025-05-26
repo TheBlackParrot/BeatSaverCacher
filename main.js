@@ -74,7 +74,7 @@ async function initCache() {
         let params = {
             automapper: false,
             before: currentDateString,
-            pageSize: 10
+            pageSize: 100
         }
         let searchParams = new URLSearchParams(params);
 
@@ -105,7 +105,6 @@ async function initCache() {
         } else {
             currentDateString = lastMap.uploaded;
             await delay(100);
-            keepGoing = false;
         }
     }
     
