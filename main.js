@@ -5,8 +5,22 @@ import settings from "./settings.json" with { type: "json" };
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-const BeatSaverAPI = "https://api.beatsaver.com/maps/latest";
-const BeatSaverSocketURL = "wss://ws.beatsaver.com/maps";
+const BeatSaverAPI = "https://api.beatsaver.com/maps";
+const BeatSaverMapSocketURL = "wss://ws.beatsaver.com/maps";
+const BeatSaverVotingSocketURL = "wss://ws.beatsaver.com/votes";
+
+/* the votes socket endpoint appears to be undocumented, this is the only event i'm seeing:
+{
+  "type": "VOTE",
+  "msg": {
+    "hash": "49222e7d40686bcfa9e4097738f803ca0d1e7019",
+    "mapId": "4659f",
+    "upvotes": 124,
+    "downvotes": 1,
+    "score": 0.9561
+  }
+}
+ */
 
 let cacheObject = {};
 
@@ -33,8 +47,23 @@ protobuf.load("./mapData.proto", async function(err, root) {
     difficultyType = root.lookupType("CachedBeatSaverData.Difficulty");
 
     await initCache();
-    startBeatSaverSocket();
+    startBeatSaverMapSocket();
+    startBeatSaverVoteSocket();
 });
+
+async function fetchMapData(id) {
+    const URL = `${BeatSaverAPI}/id/${id}`;
+
+    const response = await fetch(URL);
+    if(response.status !== 200) {
+        console.warn(`Status not 200, not caching ${id}`);
+        return;
+    }
+    
+    updateCacheData(await response.json());
+    console.log(`[Scraper] Cached id ${id}`);
+    await saveProtobufCache();
+}
 
 async function initCache() {
     let currentDateString = new Date().toISOString();
@@ -45,11 +74,11 @@ async function initCache() {
         let params = {
             automapper: false,
             before: currentDateString,
-            pageSize: 100
+            pageSize: 10
         }
         let searchParams = new URLSearchParams(params);
 
-        const URL = `${BeatSaverAPI}?${searchParams}`;
+        const URL = `${BeatSaverAPI}/latest?${searchParams}`;
 
         const response = await fetch(URL);
         if(response.status !== 200) {
@@ -76,6 +105,7 @@ async function initCache() {
         } else {
             currentDateString = lastMap.uploaded;
             await delay(100);
+            keepGoing = false;
         }
     }
     
@@ -196,38 +226,50 @@ function removeCacheData(id) {
     }
 }
 
-let socket;
-let beatSaverSocketTimeout;
-function startBeatSaverSocket() {
-    clearTimeout(beatSaverSocketTimeout);
-    console.log("[Socket] Establishing socket connection to BeatSaver...");
-    
-    socket = new WebSocket(BeatSaverSocketURL);
+async function updateVotingData(voteData) {
+    const id = voteData.mapId;
+    if(!(id in cacheObject)) {
+        console.log(`[Socket] ${id} wanted a voting update, but it's not cached, fetching...`);
+        await fetchMapData(id);
+        return;
+    }
 
-    beatSaverSocketTimeout = setTimeout(() => {
-        socket.removeEventListener("open");
-        socket.removeEventListener("close");
-        socket.removeEventListener("message");
+    cacheObject[id].votes.up = voteData.upvotes;
+    cacheObject[id].votes.down = voteData.downvotes;
+}
+
+let mapSocket;
+let mapSocketTimeout;
+function startBeatSaverMapSocket() {
+    clearTimeout(mapSocketTimeout);
+    console.log("[Socket] Establishing map data socket connection to BeatSaver...");
+    
+    mapSocket = new WebSocket(BeatSaverMapSocketURL);
+
+    mapSocketTimeout = setTimeout(() => {
+        mapSocket.removeEventListener("open");
+        mapSocket.removeEventListener("close");
+        mapSocket.removeEventListener("message");
         
-        console.warn("[Socket] BeatSaver socket connection hit a timeout after 15 seconds, trying again...");
-        startBeatSaverSocket();
+        console.warn("[Socket] BeatSaver map data socket connection hit a timeout after 15 seconds, trying again...");
+        startBeatSaverMapSocket();
     }, 15000);
     
-    socket.addEventListener("open", () => {
-        console.log("[Socket] BeatSaver socket connection established");
-        clearTimeout(beatSaverSocketTimeout);
+    mapSocket.addEventListener("open", () => {
+        console.log("[Socket] BeatSaver map data socket connection established");
+        clearTimeout(mapSocketTimeout);
     });
-    socket.addEventListener("close", () => {
-        console.warn("[Socket] BeatSaver socket connection closed, reconnecting in 15 seconds...");
-        beatSaverSocketTimeout = setTimeout(startBeatSaverSocket, 15000);
+    mapSocket.addEventListener("close", () => {
+        console.warn("[Socket] BeatSaver map data socket connection closed, reconnecting in 15 seconds...");
+        mapSocketTimeout = setTimeout(startBeatSaverMapSocket, 15000);
     });
     
-    socket.addEventListener("message", async event => {
+    mapSocket.addEventListener("message", async event => {
         const receivedData = JSON.parse(event.data);
         
         switch(receivedData.type) {
             case "MAP_UPDATE":
-                console.log(`[Socket] Updating key ${receivedData.msg.id}`);
+                console.log(`[Socket] Updating map data for key ${receivedData.msg.id}`);
                 updateCacheData(receivedData.msg);
                 try {
                     await saveProtobufCache();
@@ -246,7 +288,49 @@ function startBeatSaverSocket() {
                 break;
                 
             default:
-                console.warn(`[Socket] Unhandled event type: ${receivedData.type}`);
+                console.warn(`[Socket] Unhandled map data event type: ${receivedData.type}`);
+                break;
+        }
+    });
+}
+
+let voteSocket;
+let voteSocketTimeout;
+function startBeatSaverVoteSocket() {
+    clearTimeout(voteSocketTimeout);
+    console.log("[Socket] Establishing voting data socket connection to BeatSaver...");
+
+    voteSocket = new WebSocket(BeatSaverVotingSocketURL);
+
+    voteSocketTimeout = setTimeout(() => {
+        voteSocket.removeEventListener("open");
+        voteSocket.removeEventListener("close");
+        voteSocket.removeEventListener("message");
+
+        console.warn("[Socket] BeatSaver voting data socket connection hit a timeout after 15 seconds, trying again...");
+        startBeatSaverVoteSocket();
+    }, 15000);
+
+    voteSocket.addEventListener("open", () => {
+        console.log("[Socket] BeatSaver voting data socket connection established");
+        clearTimeout(voteSocketTimeout);
+    });
+    voteSocket.addEventListener("close", () => {
+        console.warn("[Socket] BeatSaver voting data socket connection closed, reconnecting in 15 seconds...");
+        voteSocketTimeout = setTimeout(startBeatSaverVoteSocket, 15000);
+    });
+
+    voteSocket.addEventListener("message", async event => {
+        const receivedData = JSON.parse(event.data);
+
+        switch(receivedData.type) {
+            case "VOTE":
+                console.log(`[Socket] Updating voting data for key ${receivedData.msg.mapId}`);
+                await updateVotingData(receivedData.msg);
+                break;
+
+            default:
+                console.warn(`[Socket] Unhandled voting data event type: ${receivedData.type}`);
                 break;
         }
     });
